@@ -1,33 +1,51 @@
 #include <iostream>
 #include <string.h>
 #include <cstdlib>
+#include <stdint.h>
 using namespace std;
 
-unsigned char byteBuffer[8] = {0x00, 0x00, 0x00, 0x00};
-unsigned char programStack[8][8] =
-{{0x01, 0x02, 0x03, 0x04},	// compare function ( mempoint(0x02) > mempoint(0x04) ) -> return mempoint(0x04)
-{0x01, 0x03, 0x04, 0x02},	// compare function ( mempoint(0x03) > mempoint(0x04) ) -> return mempoint(0x02)
-{0x02, 0x04, 0x02, 0x00},	// compare function ( mempoint(0x04) < mempoint(0x02) ) -> return mempoint(0x00)
-{0x03, 0x00, 0x00, 0x00},	// exit program with exit code 0x00
+uint8_t byteBuffer[4] = {0x00, 0x00, 0x00, 0x00};
+uint8_t programStack[8][4] =
+{{0x01, 0x02, 0x03, 0x04},	
+{0x05, 0x03, 0x04, 0x00},	
+{0x02, 0x04, 0x02, 0x00},	
+{0x06, 0x00, 0x00, 0x00},	// exit program with exit code 0x00
 {0x00, 0x00, 0x00, 0x00}};	// NOP (no operations)
 
-unsigned char memStack[8][3] =
+uint8_t memStack[8][2] =
 {{0x00, 0x00},	
 {0x00, 0x08},	
 {0x7F, 0x06},	
 {0x00, 0x07},	
 {0x00, 0x00}};
 
-unsigned char function01(unsigned char inputA, unsigned char inputB, unsigned char inputC);
-unsigned char function02(unsigned char inputA, unsigned char inputB, unsigned char inputC);
-unsigned char function03(unsigned char inputA);
+uint8_t sum();		// Addition ( a + b )
+uint8_t subtract();	// Substraction ( a - b )
+uint8_t mul();		// Multiplication ( a * b ) 
+uint8_t div();		// Division ( a / b ) 
+uint8_t comp();		// Comparison ( a > b )
+uint8_t compex();	// Comparison with execute ( a > b ) -> execute ( c ) 
+uint8_t stop();		// End run ( return a ) 
+uint8_t (*OP[4])();	// Function array
 
-void loadLine(unsigned char line)
+void loadLine(uint8_t line)
 {
-	memcpy(byteBuffer, programStack[line], 8);
+	memcpy(byteBuffer, programStack[line], 4);	// Copy line from program stack to bytebuffer
+	cout << "b0: " << (int) byteBuffer[0] << " b1: " << (int)byteBuffer[1] << " b2: " << (int)byteBuffer[2] << " b3: " << (int)byteBuffer[3] <<endl;
 }
 
-int16_t memVar(unsigned char point)
+void loadFunc()		// Load function pointers into array
+{
+	OP[0] = sum;
+	OP[1] = subtract;
+	OP[2] = mul;
+	OP[3] = div;
+	OP[4] = comp;
+	OP[5] = compex;
+	OP[6] = stop;
+}
+
+int16_t memVar(uint8_t point)		// Take variable from memory
 {
 	int16_t ret = 0;		// Initialize return value
 	ret = memStack[point][1];	// Push least significant byte to return
@@ -36,56 +54,55 @@ int16_t memVar(unsigned char point)
 	return(ret);
 }
 
-void doFunction(unsigned char funcId)
+uint8_t sum()
 {
-	switch(funcId){
-		case 0x01:
-			cout << "return function01 = " << hex << (int) function01(memVar(byteBuffer[0]), memVar(byteBuffer[1]), memVar(byteBuffer[2])) << endl;
-			break;
-		case 0x02:
-			cout << "return function02 = " << hex << (int) function02(byteBuffer[1], byteBuffer[2], byteBuffer[3]) << endl;
-			break;
-		case 0x03:
-			function03(byteBuffer[1]);
-		default:
-			break;
-	}
+	return(memVar(byteBuffer[1])+memVar(byteBuffer[2]));
 }
 
-unsigned char function01(unsigned char inputA, unsigned char inputB, unsigned char inputC)
+uint8_t subtract()
 {
-	if(inputA>inputB)
-	{
-		return(inputC);					// Return inputC as value if B < A
-	}
-	return(0);							// Comparison is false
+	return(memVar(byteBuffer[1])-memVar(byteBuffer[2]));
 }
 
-unsigned char function02(unsigned char inputA, unsigned char inputB, unsigned char inputC)
+uint8_t mul()
 {
-	if(inputA<inputB)
-	{
-		return(inputC);					// Return inputC as value if B > A
-	}
-	return(0);							// Comparison is false
+	return(memVar(byteBuffer[1])*memVar(byteBuffer[2]));
 }
 
-unsigned char function03(unsigned char inputA)
+uint8_t div()
 {
-	cout << "end of program : code " << hex << (int) inputA << endl;
-	exit(inputA);						// Exit program with return value from input
+	return(memVar(byteBuffer[1])/memVar(byteBuffer[2]));
+}
+
+uint8_t comp()
+{
+	return(memVar(byteBuffer[1])>memVar(byteBuffer[2]));
+}
+
+uint8_t compex()
+{
+	if(memVar(byteBuffer[1])>memVar(byteBuffer[2]))
+	return(memVar(byteBuffer[3]));
+}
+
+uint8_t stop()
+{
+	exit(memVar(byteBuffer[0]));
 }
 
 int main() {
 	cout << "Hello, you've been RAQ3D!" << endl; // prints Hello, you've been RAQ3D!
-	int i = 0;							// Program iterator
+	int i = 0;	// Program iterator
+	loadFunc();
 	while(1)
 	{
 		if(!programStack[i][0]==0x00)	// If function byte is not NOP
 		{
-			loadLine(i);				// Load program line into working memory
-			doFunction(byteBuffer[0]);	// Do function
+			loadLine(i);		// Load program line into working memory
+			cout << (int)(*OP[byteBuffer[0]])() << endl;	// Execute line and show result
 		}
+		
+		if(i > 6) exit(0);
 		i++;
 	}
 	return 0;
