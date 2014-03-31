@@ -194,7 +194,7 @@ memStack[loc][0]|=0x80;	 // If input value was negative, add sign bit
 
 }
 
-memStack[loc][1] += dat;	 // Add least significant bit
+memStack[loc][1] = dat;	 // Add least significant bit
 
 }
 
